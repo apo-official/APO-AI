@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0f1115" />
+  <title>APO AI</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-top">
+        <button class="brand" id="brandBtn" type="button" aria-label="APO AI home">
+          <span class="brand-logo">
+            <img src="apo-logo.jpg" alt="APO logo" />
+          </span>
+          <span>APO AI</span>
+        </button>
+
+        <button class="new-chat-btn" id="newChatBtn" type="button">
+          <span class="plus">＋</span>
+          <span>New chat</span>
+        </button>
+      </div>
+
+      <div class="sidebar-section">
+        <div class="sidebar-label">Chats</div>
+        <div class="chat-list" id="chatList"></div>
+      </div>
+
+      <div class="sidebar-bottom">
+        <button class="sidebar-action" id="settingsBtn" type="button">Settings</button>
+        <button class="sidebar-action" id="accountBtn" type="button">Log in</button>
+      </div>
+    </aside>
+
+    <button class="sidebar-overlay" id="sidebarOverlay" type="button" aria-label="Close sidebar"></button>
+
+    <main class="main">
+      <header class="topbar">
+        <button class="icon-btn mobile-only" id="menuBtn" type="button" aria-label="Open sidebar">☰</button>
+
+        <div class="mode-area">
+          <span class="mode-label">Mode</span>
+
+          <select id="modeSelect" disabled>
+            <option value="fast">Fast</option>
+            <option value="medium" selected>Medium</option>
+            <option value="high">High</option>
+          </select>
+
+          <button class="mode-lock" id="modeLock" type="button">Sign in to change</button>
+        </div>
+
+        <div class="topbar-actions">
+          <button class="ghost-btn" id="signupBtn" type="button">Sign up</button>
+          <button class="primary-btn" id="loginBtn" type="button">Log in</button>
+        </div>
+      </header>
+
+      <section class="chat-scroll" id="chatScroll">
+        <div class="hero" id="hero">
+          <div class="hero-logo">
+            <img src="apo-logo.jpg" alt="APO logo" />
+          </div>
+
+          <h1>How can I help?</h1>
+          <p id="heroSubtitle">Sign in to unlock Fast, Medium, and High modes.</p>
+
+          <div class="suggestions">
+            <button class="suggestion" type="button" data-prompt="Help me build something">
+              <strong>Build something</strong>
+              <span>Turn an idea into a project</span>
+            </button>
+
+            <button class="suggestion" type="button" data-prompt="Explain something difficult simply">
+              <strong>Learn</strong>
+              <span>Explain something difficult in a simple way</span>
+            </button>
+
+            <button class="suggestion" type="button" data-prompt="Help me brainstorm a new idea">
+              <strong>Brainstorm</strong>
+              <span>Come up with new ideas</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="messages" id="messages" aria-live="polite"></div>
+      </section>
+
+      <footer class="composer-area">
+        <div class="composer">
+          <textarea
+            id="messageInput"
+            rows="1"
+            placeholder="Message APO AI"
+            aria-label="Message APO AI"
+          ></textarea>
+
+          <div class="composer-row">
+            <span class="mode-hint" id="modeHint">Medium • sign in to change</span>
+            <button class="send-btn" id="sendBtn" type="button" aria-label="Send message">↑</button>
+          </div>
+        </div>
+
+        <div class="footer-note">APO AI can make mistakes. Check important information.</div>
+      </footer>
+    </main>
+  </div>
+
+  <div class="modal-backdrop hidden" id="authModal">
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="authTitle">
+      <button class="modal-close" id="authClose" type="button" aria-label="Close">×</button>
+
+      <h2 id="authTitle">Welcome back</h2>
+      <p id="authSubtitle">Log in to unlock AI modes.</p>
+
+      <button class="google-btn" id="googleBtn" type="button">Continue with Google</button>
+
+      <div class="divider"><span>or</span></div>
+
+      <form id="authForm">
+        <input id="emailInput" type="email" placeholder="Email" autocomplete="email" required />
+        <input id="passwordInput" type="password" placeholder="Password" autocomplete="current-password" minlength="6" required />
+        <button class="primary-btn full-width" id="authSubmit" type="submit">Log in</button>
+      </form>
+
+      <button class="text-btn" id="switchAuthMode" type="button">
+        Don't have an account? Sign up
+      </button>
+    </div>
+  </div>
+
+  <div class="modal-backdrop hidden" id="settingsModal">
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+      <button class="modal-close" id="settingsClose" type="button" aria-label="Close">×</button>
+
+      <h2 id="settingsTitle">Settings</h2>
+
+      <div class="setting-row">
+        <div>
+          <strong>Theme</strong>
+          <p>Switch between dark and light mode.</p>
+        </div>
+        <button class="ghost-btn" id="themeToggle" type="button">Light mode</button>
+      </div>
+
+      <div class="setting-row">
+        <div>
+          <strong>Default mode</strong>
+          <p id="settingsModeText">Sign in to change AI mode.</p>
+        </div>
+
+        <select id="settingsModeSelect" disabled>
+          <option value="fast">Fast</option>
+          <option value="medium" selected>Medium</option>
+          <option value="high">High</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="script.js"></script>
+</body>
+</html>
