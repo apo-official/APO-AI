@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0f1115" />
+  <title>APO AI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-top">
+        <button class="brand" id="brandBtn" aria-label="APO AI home">
+          <span class="brand-mark">A</span>
+          <span class="brand-text">APO AI</span>
+        </button>
+
+        <button class="new-chat-btn" id="newChatBtn">
+          <span>＋</span>
+          New chat
+        </button>
+      </div>
+
+      <div class="sidebar-section">
+        <div class="sidebar-label">Chats</div>
+        <div class="chat-list" id="chatList">
+          <button class="chat-item active">
+            <span class="chat-title">Welcome to APO AI</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="sidebar-bottom">
+        <button class="sidebar-action" id="settingsBtn">Settings</button>
+        <button class="sidebar-action" id="loginBtn">Log in</button>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <button class="icon-btn mobile-only" id="menuBtn" aria-label="Open menu">☰</button>
+
+        <div class="mode-wrap">
+          <label for="modeSelect">Mode</label>
+          <select id="modeSelect">
+            <option value="fast">Fast</option>
+            <option value="medium" selected>Medium</option>
+            <option value="high">High</option>
+          </select>
+        </div>
+
+        <div class="topbar-actions">
+          <button class="ghost-btn" id="signupBtn">Sign up</button>
+          <button class="primary-btn" id="topLoginBtn">Log in</button>
+        </div>
+      </header>
+
+      <section class="chat-view" id="chatView">
+        <div class="hero" id="hero">
+          <div class="hero-logo">A</div>
+          <h1>How can I help?</h1>
+          <p>Choose a mode and start a conversation.</p>
+
+          <div class="suggestions">
+            <button class="suggestion-card" data-prompt="Help me build a Discord bot">
+              <strong>Build something</strong>
+              <span>Help me build a Discord bot</span>
+            </button>
+            <button class="suggestion-card" data-prompt="Explain something difficult in a simple way">
+              <strong>Learn</strong>
+              <span>Explain something difficult simply</span>
+            </button>
+            <button class="suggestion-card" data-prompt="Help me brainstorm a new website idea">
+              <strong>Brainstorm</strong>
+              <span>Help me brainstorm a website idea</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="messages" id="messages" aria-live="polite"></div>
+      </section>
+
+      <footer class="composer-wrap">
+        <div class="composer">
+          <textarea
+            id="messageInput"
+            rows="1"
+            placeholder="Message APO AI"
+            aria-label="Message APO AI"
+          ></textarea>
+
+          <div class="composer-bottom">
+            <div class="composer-left">
+              <button class="icon-btn" id="attachBtn" aria-label="Attach file">＋</button>
+              <span class="mode-hint" id="modeHint">Medium • balanced reasoning</span>
+            </div>
+
+            <button class="send-btn" id="sendBtn" aria-label="Send message">↑</button>
+          </div>
+        </div>
+        <div class="footer-note">APO AI can make mistakes. Check important information.</div>
+      </footer>
+    </main>
+  </div>
+
+  <div class="modal-backdrop hidden" id="authModal">
+    <div class="modal">
+      <button class="modal-close" id="authClose">×</button>
+      <h2 id="authTitle">Welcome back</h2>
+      <p id="authSubtitle">Log in to save chats and sync your account.</p>
+
+      <button class="google-btn" id="googleBtn">
+        <span class="google-dot">G</span>
+        Continue with Google
+      </button>
+
+      <div class="divider"><span>or</span></div>
+
+      <form id="authForm">
+        <input type="email" id="emailInput" placeholder="Email" required />
+        <input type="password" id="passwordInput" placeholder="Password" minlength="6" required />
+        <button class="primary-btn full" type="submit" id="authSubmit">Log in</button>
+      </form>
+
+      <button class="text-btn" id="switchAuthMode">
+        Don't have an account? Sign up
+      </button>
+
+      <div class="auth-note">
+        Firebase authentication will be connected in the next step.
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop hidden" id="settingsModal">
+    <div class="modal">
+      <button class="modal-close" id="settingsClose">×</button>
+      <h2>Settings</h2>
+
+      <div class="setting-row">
+        <div>
+          <strong>Theme</strong>
+          <p>Switch between dark and light mode.</p>
+        </div>
+        <button class="ghost-btn" id="themeToggle">Light mode</button>
+      </div>
+
+      <div class="setting-row">
+        <div>
+          <strong>Default mode</strong>
+          <p>Used when a new chat starts.</p>
+        </div>
+        <select id="settingsModeSelect">
+          <option value="fast">Fast</option>
+          <option value="medium" selected>Medium</option>
+          <option value="high">High</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
