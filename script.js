@@ -1,3 +1,29 @@
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
+import {
+  getAuth,
+  GoogleAuthProvider,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signInWithPopup,
+  signOut,
+  onAuthStateChanged,
+  updateProfile
+} from "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyDOWuyS5_mqFn_tQVjvVYcC3cN0LJr0N9I",
+  authDomain: "apo-ai-44c75.firebaseapp.com",
+  projectId: "apo-ai-44c75",
+  storageBucket: "apo-ai-44c75.firebasestorage.app",
+  messagingSenderId: "62178907921",
+  appId: "1:62178907921:web:2dc28703837926fb241eb0",
+  measurementId: "G-F3GBX9D6TG"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const googleProvider = new GoogleAuthProvider();
+
 const $ = (id) => document.getElementById(id);
 
 const sidebar = $("sidebar");
@@ -24,6 +50,8 @@ const loginBtn = $("loginBtn");
 const topLoginBtn = $("topLoginBtn");
 const signupBtn = $("signupBtn");
 const googleBtn = $("googleBtn");
+const emailInput = $("emailInput");
+const passwordInput = $("passwordInput");
 
 const settingsModal = $("settingsModal");
 const settingsBtn = $("settingsBtn");
@@ -31,6 +59,7 @@ const settingsClose = $("settingsClose");
 const themeToggle = $("themeToggle");
 
 let authMode = "login";
+let currentUser = null;
 let chats = JSON.parse(localStorage.getItem("apo_ai_chats") || "[]");
 let activeChatId = null;
 
@@ -163,13 +192,13 @@ function fakeAssistantReply(userText) {
   const mode = modeSelect.value;
   const modeLabel = mode[0].toUpperCase() + mode.slice(1);
 
-  return `APO AI is not connected to the backend yet.
+  return `Firebase login is connected now.
 
 You said: "${userText}"
 
 Current mode: ${modeLabel}
 
-Next step: connect Firebase authentication and then the secure AI backend.`;
+Next step: connect the secure APO AI backend so this becomes a real AI response instead of this demo message.`;
 }
 
 function sendMessage() {
@@ -185,10 +214,17 @@ function sendMessage() {
   setTimeout(() => {
     addMessage("assistant", fakeAssistantReply(text));
     sendBtn.disabled = false;
-  }, 450);
+  }, 350);
 }
 
 function openAuth(mode = "login") {
+  if (currentUser) {
+    const label = currentUser.displayName || currentUser.email || "Account";
+    const shouldLogout = confirm(`Signed in as ${label}.\n\nLog out?`);
+    if (shouldLogout) doLogout();
+    return;
+  }
+
   authMode = mode;
   updateAuthUI();
   authModal.classList.remove("hidden");
@@ -218,6 +254,57 @@ function escapeHtml(text) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+function readableAuthError(error) {
+  const code = error?.code || "";
+
+  const messages = {
+    "auth/email-already-in-use": "That email already has an account.",
+    "auth/invalid-email": "That email address is not valid.",
+    "auth/weak-password": "Use a password with at least 6 characters.",
+    "auth/invalid-credential": "Wrong email or password.",
+    "auth/user-disabled": "This account has been disabled.",
+    "auth/popup-closed-by-user": "Google sign-in was closed before finishing.",
+    "auth/popup-blocked": "Your browser blocked the Google sign-in popup.",
+    "auth/unauthorized-domain": "This website domain is not authorized in Firebase Authentication.",
+    "auth/network-request-failed": "Network error. Check your connection and try again.",
+  };
+
+  return messages[code] || error?.message || "Authentication failed. Try again.";
+}
+
+function setAuthBusy(busy) {
+  authSubmit.disabled = busy;
+  googleBtn.disabled = busy;
+  authSubmit.textContent = busy
+    ? "Please wait..."
+    : authMode === "login"
+      ? "Log in"
+      : "Create account";
+}
+
+function updateSignedInUI(user) {
+  currentUser = user;
+
+  if (user) {
+    const label = user.displayName || user.email?.split("@")[0] || "Account";
+    loginBtn.textContent = label;
+    topLoginBtn.textContent = label;
+    signupBtn.style.display = "none";
+  } else {
+    loginBtn.textContent = "Log in";
+    topLoginBtn.textContent = "Log in";
+    signupBtn.style.display = "";
+  }
+}
+
+async function doLogout() {
+  try {
+    await signOut(auth);
+  } catch (error) {
+    alert(readableAuthError(error));
+  }
 }
 
 messageInput.addEventListener("input", autoResize);
@@ -266,13 +353,48 @@ authModal.addEventListener("click", (e) => {
   if (e.target === authModal) closeModal(authModal);
 });
 
-authForm.addEventListener("submit", (e) => {
+authForm.addEventListener("submit", async (e) => {
   e.preventDefault();
-  alert("Firebase email/password auth is the next step.");
+
+  const email = emailInput.value.trim();
+  const password = passwordInput.value;
+
+  setAuthBusy(true);
+
+  try {
+    if (authMode === "signup") {
+      const result = await createUserWithEmailAndPassword(auth, email, password);
+      const defaultName = email.split("@")[0].slice(0, 32);
+
+      try {
+        await updateProfile(result.user, { displayName: defaultName });
+      } catch (_) {}
+
+      alert("Account created. You're signed in.");
+    } else {
+      await signInWithEmailAndPassword(auth, email, password);
+    }
+
+    authForm.reset();
+    closeModal(authModal);
+  } catch (error) {
+    alert(readableAuthError(error));
+  } finally {
+    setAuthBusy(false);
+  }
 });
 
-googleBtn.addEventListener("click", () => {
-  alert("Google sign-in will be connected with Firebase next.");
+googleBtn.addEventListener("click", async () => {
+  setAuthBusy(true);
+
+  try {
+    await signInWithPopup(auth, googleProvider);
+    closeModal(authModal);
+  } catch (error) {
+    alert(readableAuthError(error));
+  } finally {
+    setAuthBusy(false);
+  }
 });
 
 settingsBtn.addEventListener("click", () => {
@@ -293,7 +415,11 @@ themeToggle.addEventListener("click", () => {
 });
 
 $("attachBtn").addEventListener("click", () => {
-  alert("File uploads can be added after the backend is connected.");
+  alert("File uploads will be added after the AI backend is connected.");
+});
+
+onAuthStateChanged(auth, (user) => {
+  updateSignedInUI(user);
 });
 
 const savedMode = localStorage.getItem("apo_ai_mode");
