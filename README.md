@@ -1,48 +1,35 @@
 # APO AI
 
-A ChatGPT-style AI chat interface for the APO project.
+ChatGPT-style APO AI frontend with Firebase Authentication connected.
 
-## Current starter features
+## Working now
 
-- ChatGPT-style responsive interface
-- Fast / Medium / High mode selector
-- New chat + local chat history
-- Email/password login UI
-- Google sign-in UI
-- Dark/light mode
-- Mobile sidebar
-- Responsive phone layout
-- Starter settings panel
+- Email/password sign up
+- Email/password login
+- Google sign-in
+- Firebase session persistence
+- Fast / Medium / High UI
+- Local chat history
+- Mobile layout
+- Dark/light theme
 
-## Important
+## Firebase project
 
-This starter is frontend-only.
+This build is connected to the Firebase project `apo-ai-44c75`.
 
-The AI API key must **never** be placed inside `script.js` or any public GitHub Pages file.
+The Firebase web config in `script.js` is client-side configuration. Do not put private AI-provider API keys, Discord bot tokens, service-account keys, or other secrets in frontend files.
 
-## Next steps
+## Firebase Console setup required
 
-1. Connect Firebase Authentication
-   - Email/password
-   - Google sign-in
-2. Connect Firestore
-   - User profiles
-   - Chat history
-3. Add a secure backend API
-4. Connect Fast / Medium / High modes to different reasoning settings
-5. Add streaming responses
-6. Add file/image uploads
+In Firebase Authentication, enable:
 
-## Files
+1. Email/Password
+2. Google
 
-- `index.html`
-- `style.css`
-- `script.js`
+Also make sure your deployed website domain is listed under Authentication → Settings → Authorized domains.
 
-## Local testing
+## Still demo-only
 
-Open `index.html` in a browser, or host the repository with GitHub Pages.
+The chat response itself is still a local demo response. The next step is to add a secure backend API for the actual AI.
 
-## Security
-
-Keep all AI provider secrets in a server-side environment variable. Never commit private API keys or Discord tokens to GitHub.
+Do not put the AI API key directly into `script.js`.
