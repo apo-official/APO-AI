@@ -7,7 +7,9 @@ import {
   signInWithPopup,
   signOut,
   onAuthStateChanged,
-  updateProfile
+  updateProfile,
+  sendEmailVerification,
+  reload
 } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
 
 const firebaseConfig = {
@@ -20,6 +22,8 @@ const firebaseConfig = {
   measurementId: "G-F3GBX9D6TG"
 };
 
+const OWNER_EMAIL = "dachivasadze18@gmail.com";
+
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const googleProvider = new GoogleAuthProvider();
@@ -28,58 +32,30 @@ const $ = (id) => document.getElementById(id);
 
 const sidebar = $("sidebar");
 const sidebarOverlay = $("sidebarOverlay");
-const menuBtn = $("menuBtn");
-const brandBtn = $("brandBtn");
-const newChatBtn = $("newChatBtn");
 const chatList = $("chatList");
-const chatScroll = $("chatScroll");
 const hero = $("hero");
 const messages = $("messages");
+const chatScroll = $("chatScroll");
 const messageInput = $("messageInput");
-const sendBtn = $("sendBtn");
-
 const modeSelect = $("modeSelect");
-const modeLock = $("modeLock");
-const modeHint = $("modeHint");
 const settingsModeSelect = $("settingsModeSelect");
-const settingsModeText = $("settingsModeText");
 
-const signupBtn = $("signupBtn");
-const loginBtn = $("loginBtn");
-const accountBtn = $("accountBtn");
-
-const authModal = $("authModal");
-const authClose = $("authClose");
-const authTitle = $("authTitle");
-const authSubtitle = $("authSubtitle");
-const authForm = $("authForm");
-const emailInput = $("emailInput");
-const passwordInput = $("passwordInput");
-const authSubmit = $("authSubmit");
-const googleBtn = $("googleBtn");
-const switchAuthMode = $("switchAuthMode");
-
-const settingsModal = $("settingsModal");
-const settingsBtn = $("settingsBtn");
-const settingsClose = $("settingsClose");
-const themeToggle = $("themeToggle");
-
-let authMode = "login";
 let currentUser = null;
+let authMode = "login";
 let activeChatId = null;
-let chats = readChats();
+let chats = readJSON("apo_ai_chats", []);
+let pendingAttachments = [];
 
-const modeDescriptions = {
-  fast: "Fast • quickest replies",
-  medium: "Medium • balanced reasoning",
-  high: "High • deeper reasoning"
-};
+let mediaRecorder = null;
+let recordedChunks = [];
+let recordingStartedAt = 0;
+let recordingTimer = null;
 
-function readChats() {
+function readJSON(key, fallback) {
   try {
-    return JSON.parse(localStorage.getItem("apo_ai_chats") || "[]");
+    return JSON.parse(localStorage.getItem(key) || JSON.stringify(fallback));
   } catch {
-    return [];
+    return fallback;
   }
 }
 
@@ -88,21 +64,21 @@ function saveChats() {
 }
 
 function makeId() {
-  return crypto.randomUUID ? crypto.randomUUID() : String(Date.now());
+  return crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
 }
 
 function escapeHtml(text) {
   return String(text)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#039;");
 }
 
 function autoResize() {
   messageInput.style.height = "auto";
-  messageInput.style.height = Math.min(messageInput.scrollHeight, 180) + "px";
+  messageInput.style.height = Math.min(messageInput.scrollHeight, 160) + "px";
 }
 
 function openSidebar() {
@@ -115,84 +91,43 @@ function closeSidebar() {
   sidebarOverlay.classList.remove("open");
 }
 
-function openModal(modal) {
-  modal.classList.remove("hidden");
+function openModal(el) {
+  el.classList.remove("hidden");
 }
 
-function closeModal(modal) {
-  modal.classList.add("hidden");
+function closeModal(el) {
+  el.classList.add("hidden");
 }
 
-function setModeAccess(user) {
-  const signedIn = Boolean(user);
-
-  modeSelect.disabled = !signedIn;
-  settingsModeSelect.disabled = !signedIn;
-  modeLock.classList.toggle("hidden", signedIn);
-
-  if (signedIn) {
-    const savedMode = localStorage.getItem("apo_ai_mode");
-    modeSelect.value = savedMode && modeDescriptions[savedMode] ? savedMode : "medium";
-  } else {
-    modeSelect.value = "medium";
-  }
-
-  settingsModeSelect.value = modeSelect.value;
-  modeHint.textContent = signedIn
-    ? modeDescriptions[modeSelect.value]
-    : "Medium • sign in to change";
-
-  settingsModeText.textContent = signedIn
-    ? "Used when a new chat starts."
-    : "Sign in to change AI mode.";
-
-  $("heroSubtitle").textContent = signedIn
-    ? "Choose a mode and start a conversation."
-    : "Sign in to unlock Fast, Medium, and High modes.";
-}
-
-function updateMode() {
-  if (!currentUser) {
-    openAuth("login");
-    return;
-  }
-
-  localStorage.setItem("apo_ai_mode", modeSelect.value);
-  settingsModeSelect.value = modeSelect.value;
-  modeHint.textContent = modeDescriptions[modeSelect.value];
+function isOwner(user = currentUser) {
+  return Boolean(user?.email && user.email.toLowerCase() === OWNER_EMAIL.toLowerCase());
 }
 
 function renderChatList() {
   chatList.innerHTML = "";
 
   if (!chats.length) {
-    const empty = document.createElement("div");
-    empty.className = "sidebar-label";
-    empty.textContent = "No chats yet";
-    chatList.appendChild(empty);
+    chatList.innerHTML = '<div class="sidebar-label">No chats yet</div>';
     return;
   }
 
   chats.forEach((chat) => {
-    const button = document.createElement("button");
-    button.className = "chat-item" + (chat.id === activeChatId ? " active" : "");
-    button.type = "button";
-    button.innerHTML = `<span class="chat-title">${escapeHtml(chat.title)}</span>`;
-
-    button.addEventListener("click", () => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "chat-item" + (chat.id === activeChatId ? " active" : "");
+    btn.innerHTML = `<span class="chat-title">${escapeHtml(chat.title)}</span>`;
+    btn.onclick = () => {
       activeChatId = chat.id;
       renderAll();
       closeSidebar();
-    });
-
-    chatList.appendChild(button);
+    };
+    chatList.appendChild(btn);
   });
 }
 
 function renderMessages() {
   messages.innerHTML = "";
-
-  const chat = chats.find((item) => item.id === activeChatId);
+  const chat = chats.find(c => c.id === activeChatId);
 
   if (!chat || !chat.messages.length) {
     hero.classList.remove("hidden");
@@ -206,17 +141,47 @@ function renderMessages() {
     row.className = `message ${msg.role}`;
 
     if (msg.role === "assistant") {
-      const avatar = document.createElement("div");
-      avatar.className = "avatar";
-      avatar.innerHTML = '<img src="apo-logo.jpg" alt="APO">';
+      const avatar = document.createElement("img");
+      avatar.className = "message-avatar";
+      avatar.src = "apo-logo.jpg";
+      avatar.alt = "APO";
       row.appendChild(avatar);
     }
 
     const bubble = document.createElement("div");
     bubble.className = "bubble";
-    bubble.textContent = msg.content;
-    row.appendChild(bubble);
 
+    if (msg.content) {
+      const text = document.createElement("div");
+      text.textContent = msg.content;
+      bubble.appendChild(text);
+    }
+
+    for (const attachment of msg.attachments || []) {
+      if (attachment.kind === "image") {
+        const img = document.createElement("img");
+        img.className = "message-attachment";
+        img.src = attachment.dataUrl;
+        img.alt = attachment.name || "Image";
+        bubble.appendChild(img);
+      } else if (attachment.kind === "voice") {
+        const wrap = document.createElement("div");
+        wrap.className = "voice-chip";
+        const audio = document.createElement("audio");
+        audio.controls = true;
+        audio.src = attachment.dataUrl;
+        wrap.append("🎙 Voice message ");
+        wrap.appendChild(audio);
+        bubble.appendChild(wrap);
+      } else {
+        const chip = document.createElement("div");
+        chip.className = "file-chip";
+        chip.textContent = `📎 ${attachment.name || "File"}`;
+        bubble.appendChild(chip);
+      }
+    }
+
+    row.appendChild(bubble);
     messages.appendChild(row);
   }
 
@@ -230,136 +195,92 @@ function renderAll() {
   renderMessages();
 }
 
-function createChat(firstMessage) {
-  const chat = {
+function ensureChat(seed = "") {
+  let chat = chats.find(c => c.id === activeChatId);
+  if (chat) return chat;
+
+  chat = {
     id: makeId(),
-    title: firstMessage.slice(0, 36) || "New chat",
-    mode: modeSelect.value,
+    title: seed.slice(0, 36) || "New chat",
     createdAt: Date.now(),
+    mode: modeSelect.value,
     messages: []
   };
-
   chats.unshift(chat);
   activeChatId = chat.id;
   return chat;
 }
 
-function getActiveChat(firstMessage = "") {
-  let chat = chats.find((item) => item.id === activeChatId);
-
-  if (!chat) {
-    chat = createChat(firstMessage);
-  }
-
-  return chat;
-}
-
-function addMessage(role, content) {
-  const chat = getActiveChat(content);
-
-  chat.messages.push({
-    role,
-    content,
-    ts: Date.now()
-  });
-
+function addMessage(role, content, attachments = []) {
+  const chat = ensureChat(content || attachments[0]?.name || "New chat");
+  chat.messages.push({ role, content, attachments, ts: Date.now() });
   if (chat.messages.length === 1 && role === "user") {
-    chat.title = content.slice(0, 36) || "New chat";
+    chat.title = (content || attachments[0]?.name || "New chat").slice(0, 36);
   }
-
   chat.mode = modeSelect.value;
-
   saveChats();
   renderAll();
 }
 
-function demoAssistantReply(userText) {
-  const modeName = modeSelect.value[0].toUpperCase() + modeSelect.value.slice(1);
-
-  return `You said: "${userText}"
-
-Current mode: ${modeName}
-
-APO AI's secure backend is the next step. The website UI and Firebase login are working, but this reply is still a demo response.`;
+function demoReply(text, attachments) {
+  const pieces = [];
+  if (text) pieces.push(`You said: "${text}"`);
+  if (attachments?.length) pieces.push(`You attached ${attachments.length} item${attachments.length === 1 ? "" : "s"}.`);
+  pieces.push(`Mode: ${modeSelect.value}`);
+  pieces.push("The real APO AI backend is the next step; this is still a frontend demo reply.");
+  return pieces.join("\\n\\n");
 }
 
 function sendMessage() {
   const text = messageInput.value.trim();
+  if (!text && !pendingAttachments.length) return;
 
-  if (!text) return;
-
-  addMessage("user", text);
+  const attachments = pendingAttachments.map(a => ({...a}));
+  addMessage("user", text, attachments);
 
   messageInput.value = "";
+  pendingAttachments = [];
+  renderAttachmentPreview();
   autoResize();
 
-  sendBtn.disabled = true;
-
-  window.setTimeout(() => {
-    addMessage("assistant", demoAssistantReply(text));
-    sendBtn.disabled = false;
-  }, 250);
+  $("sendBtn").disabled = true;
+  setTimeout(() => {
+    addMessage("assistant", demoReply(text, attachments));
+    $("sendBtn").disabled = false;
+  }, 220);
 }
 
-function updateAuthUI() {
-  const isLogin = authMode === "login";
+function setModeAccess(user) {
+  const signedIn = Boolean(user);
+  modeSelect.disabled = !signedIn;
+  settingsModeSelect.disabled = !signedIn;
+  $("modeLock").classList.toggle("hidden", signedIn);
 
-  authTitle.textContent = isLogin ? "Welcome back" : "Create your account";
-  authSubtitle.textContent = isLogin
-    ? "Log in to unlock AI modes."
-    : "Sign up with email or Google to unlock AI modes.";
-
-  authSubmit.textContent = isLogin ? "Log in" : "Create account";
-
-  switchAuthMode.textContent = isLogin
-    ? "Don't have an account? Sign up"
-    : "Already have an account? Log in";
-
-  passwordInput.autocomplete = isLogin ? "current-password" : "new-password";
-}
-
-function openAuth(mode = "login") {
-  if (currentUser) {
-    const label = currentUser.displayName || currentUser.email || "Account";
-    const shouldLogout = confirm(`Signed in as ${label}.\n\nLog out?`);
-
-    if (shouldLogout) {
-      signOut(auth);
-    }
-
-    return;
+  if (signedIn) {
+    const saved = localStorage.getItem("apo_ai_mode");
+    modeSelect.value = ["fast","medium","high"].includes(saved) ? saved : "medium";
+  } else {
+    modeSelect.value = "medium";
   }
 
-  authMode = mode;
-  updateAuthUI();
-  openModal(authModal);
+  settingsModeSelect.value = modeSelect.value;
+  $("modeHint").textContent = signedIn
+    ? `${modeSelect.value[0].toUpperCase() + modeSelect.value.slice(1)} mode`
+    : "Medium • sign in to change";
+
+  $("heroSubtitle").textContent = signedIn
+    ? "Choose a mode and start a conversation."
+    : "Sign in to unlock all APO AI modes.";
 }
 
-function authErrorMessage(error) {
-  const map = {
-    "auth/email-already-in-use": "That email already has an account.",
-    "auth/invalid-email": "That email address is not valid.",
-    "auth/weak-password": "Use a password with at least 6 characters.",
-    "auth/invalid-credential": "Wrong email or password.",
-    "auth/user-disabled": "This account has been disabled.",
-    "auth/popup-closed-by-user": "Google sign-in was closed before finishing.",
-    "auth/popup-blocked": "Your browser blocked the Google sign-in popup.",
-    "auth/unauthorized-domain": "Add apo-official.github.io to Firebase Authentication → Settings → Authorized domains.",
-    "auth/network-request-failed": "Network error. Check your connection and try again."
-  };
-
-  return map[error?.code] || error?.message || "Authentication failed. Try again.";
-}
-
-function setAuthBusy(busy) {
-  authSubmit.disabled = busy;
-  googleBtn.disabled = busy;
-
-  authSubmit.textContent = busy
-    ? "Please wait..."
-    : authMode === "login"
-      ? "Log in"
-      : "Create account";
+function updateMode() {
+  if (!currentUser) {
+    openAuth("login");
+    return;
+  }
+  localStorage.setItem("apo_ai_mode", modeSelect.value);
+  settingsModeSelect.value = modeSelect.value;
+  $("modeHint").textContent = `${modeSelect.value[0].toUpperCase() + modeSelect.value.slice(1)} mode`;
 }
 
 function updateAccountUI(user) {
@@ -367,178 +288,476 @@ function updateAccountUI(user) {
   setModeAccess(user);
 
   if (user) {
-    const label = user.displayName || user.email?.split("@")[0] || "Account";
+    const name = user.displayName || user.email?.split("@")[0] || "Account";
+    $("loginBtn").textContent = name;
+    $("accountBtn").textContent = name;
+    $("signupBtn").classList.add("hidden");
+    $("settingsAccountName").textContent = name;
+    $("settingsAccountEmail").textContent = user.email || "";
+    $("accountAvatar").textContent = name.slice(0,1).toUpperCase();
+    $("verificationStatus").textContent = user.emailVerified ? "Verified" : "Not verified";
+    $("verifyFromSettingsBtn").classList.toggle("hidden", user.emailVerified);
+    $("logoutBtn").classList.remove("hidden");
 
-    loginBtn.textContent = label;
-    accountBtn.textContent = label;
-    signupBtn.style.display = "none";
+    $("ownerTabBtn").classList.toggle("hidden", !isOwner(user));
   } else {
-    loginBtn.textContent = "Log in";
-    accountBtn.textContent = "Log in";
-    signupBtn.style.display = "";
+    $("loginBtn").textContent = "Log in";
+    $("accountBtn").textContent = "Log in";
+    $("signupBtn").classList.remove("hidden");
+    $("settingsAccountName").textContent = "Not signed in";
+    $("settingsAccountEmail").textContent = "Sign in to sync your account.";
+    $("accountAvatar").textContent = "A";
+    $("verificationStatus").textContent = "Not signed in";
+    $("verifyFromSettingsBtn").classList.add("hidden");
+    $("logoutBtn").classList.add("hidden");
+    $("ownerTabBtn").classList.add("hidden");
   }
 }
 
-menuBtn.addEventListener("click", () => {
-  if (sidebar.classList.contains("open")) {
-    closeSidebar();
-  } else {
-    openSidebar();
+function updateAuthUI() {
+  const signup = authMode === "signup";
+  $("authTitle").textContent = signup ? "Create your account" : "Welcome back";
+  $("authSubtitle").textContent = signup
+    ? "Choose a display name and create your APO AI account."
+    : "Log in to continue to APO AI.";
+  $("authSubmit").textContent = signup ? "Create account" : "Log in";
+  $("displayNameWrap").classList.toggle("hidden", !signup);
+  $("displayNameInput").required = signup;
+  $("passwordInput").autocomplete = signup ? "new-password" : "current-password";
+  $("switchAuthMode").textContent = signup
+    ? "Already have an account? Log in"
+    : "Don't have an account? Sign up";
+  $("verifyBox").classList.add("hidden");
+}
+
+function openAuth(mode = "login") {
+  if (currentUser) {
+    $("settingsBtn").click();
+    return;
   }
-});
+  authMode = mode;
+  updateAuthUI();
+  openModal($("authModal"));
+}
 
-sidebarOverlay.addEventListener("click", closeSidebar);
+function authError(error) {
+  const map = {
+    "auth/email-already-in-use": "That email already has an account.",
+    "auth/invalid-email": "That email address is not valid.",
+    "auth/weak-password": "Use a password with at least 6 characters.",
+    "auth/invalid-credential": "Wrong email or password.",
+    "auth/popup-closed-by-user": "Google sign-in was closed before finishing.",
+    "auth/popup-blocked": "Your browser blocked the Google sign-in popup.",
+    "auth/unauthorized-domain": "Add apo-official.github.io to Firebase Authentication → Settings → Authorized domains.",
+    "auth/network-request-failed": "Network error. Check your connection and try again."
+  };
+  return map[error?.code] || error?.message || "Authentication failed.";
+}
 
-brandBtn.addEventListener("click", () => {
+function setAuthBusy(busy) {
+  $("authSubmit").disabled = busy;
+  $("googleBtn").disabled = busy;
+  $("authSubmit").textContent = busy
+    ? "Please wait..."
+    : authMode === "signup" ? "Create account" : "Log in";
+}
+
+async function sendVerification(user = auth.currentUser) {
+  if (!user) return;
+  await sendEmailVerification(user);
+  $("verifyBox").classList.remove("hidden");
+}
+
+function fileToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = reject;
+    reader.onload = () => resolve(reader.result);
+    reader.readAsDataURL(file);
+  });
+}
+
+async function addFiles(files, source = "file") {
+  for (const file of Array.from(files)) {
+    const isImage = file.type.startsWith("image/");
+    const dataUrl = await fileToDataUrl(file);
+    pendingAttachments.push({
+      id: makeId(),
+      kind: isImage ? "image" : "file",
+      name: file.name,
+      type: file.type,
+      size: file.size,
+      source,
+      dataUrl
+    });
+  }
+  renderAttachmentPreview();
+}
+
+function renderAttachmentPreview() {
+  const strip = $("attachmentPreview");
+  strip.innerHTML = "";
+
+  if (!pendingAttachments.length) {
+    strip.classList.add("hidden");
+    return;
+  }
+
+  strip.classList.remove("hidden");
+
+  pendingAttachments.forEach((att) => {
+    const item = document.createElement("div");
+    item.className = "preview-item";
+
+    if (att.kind === "image") {
+      const img = document.createElement("img");
+      img.src = att.dataUrl;
+      img.alt = att.name;
+      item.appendChild(img);
+    } else if (att.kind === "voice") {
+      const label = document.createElement("div");
+      label.className = "preview-file";
+      label.textContent = "🎙 Voice message";
+      item.appendChild(label);
+    } else {
+      const label = document.createElement("div");
+      label.className = "preview-file";
+      label.textContent = `📎 ${att.name}`;
+      item.appendChild(label);
+    }
+
+    const remove = document.createElement("button");
+    remove.className = "preview-remove";
+    remove.type = "button";
+    remove.textContent = "×";
+    remove.onclick = () => {
+      pendingAttachments = pendingAttachments.filter(x => x.id !== att.id);
+      renderAttachmentPreview();
+    };
+    item.appendChild(remove);
+    strip.appendChild(item);
+  });
+}
+
+async function startRecording() {
+  if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
+    alert("Voice recording is not supported in this browser.");
+    return;
+  }
+
+  if (isOwner() && !$("ownerVoiceToggle").checked) {
+    alert("Voice recording is disabled in Owner Controls.");
+    return;
+  }
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    recordedChunks = [];
+    mediaRecorder = new MediaRecorder(stream);
+
+    mediaRecorder.ondataavailable = (e) => {
+      if (e.data.size) recordedChunks.push(e.data);
+    };
+
+    mediaRecorder.onstop = async () => {
+      clearInterval(recordingTimer);
+      $("recordingToast").classList.add("hidden");
+      $("micBtn").classList.remove("recording");
+
+      const blob = new Blob(recordedChunks, { type: mediaRecorder.mimeType || "audio/webm" });
+      const file = new File([blob], `voice-${Date.now()}.webm`, { type: blob.type });
+      const dataUrl = await fileToDataUrl(file);
+
+      pendingAttachments.push({
+        id: makeId(),
+        kind: "voice",
+        name: file.name,
+        type: file.type,
+        size: file.size,
+        dataUrl
+      });
+
+      stream.getTracks().forEach(t => t.stop());
+      renderAttachmentPreview();
+    };
+
+    mediaRecorder.start();
+    recordingStartedAt = Date.now();
+    $("recordingToast").classList.remove("hidden");
+    $("micBtn").classList.add("recording");
+
+    const tick = () => {
+      const seconds = Math.floor((Date.now() - recordingStartedAt) / 1000);
+      const m = Math.floor(seconds / 60);
+      const s = String(seconds % 60).padStart(2, "0");
+      $("recordingTime").textContent = `Recording ${m}:${s}`;
+    };
+    tick();
+    recordingTimer = setInterval(tick, 500);
+  } catch (error) {
+    alert("Microphone permission was blocked or unavailable.");
+  }
+}
+
+function stopRecording() {
+  if (mediaRecorder && mediaRecorder.state !== "inactive") {
+    mediaRecorder.stop();
+  }
+}
+
+function switchSettingsTab(name) {
+  document.querySelectorAll(".settings-tab").forEach(btn => {
+    btn.classList.toggle("active", btn.dataset.tab === name);
+  });
+  document.querySelectorAll(".settings-panel").forEach(panel => {
+    panel.classList.toggle("active", panel.dataset.panel === name);
+  });
+}
+
+function loadOwnerSettings() {
+  const owner = readJSON("apo_owner_settings", {
+    systemPrompt: "You are APO AI. Be helpful, clear, and concise.",
+    images: true,
+    voice: true,
+    maintenance: false
+  });
+  $("ownerSystemPrompt").value = owner.systemPrompt || "";
+  $("ownerImagesToggle").checked = owner.images !== false;
+  $("ownerVoiceToggle").checked = owner.voice !== false;
+  $("ownerMaintenanceToggle").checked = owner.maintenance === true;
+}
+
+$("menuBtn").onclick = () => sidebar.classList.contains("open") ? closeSidebar() : openSidebar();
+sidebarOverlay.onclick = closeSidebar;
+
+$("homeBtn").onclick = () => {
   activeChatId = null;
   renderAll();
   closeSidebar();
-});
+};
 
-newChatBtn.addEventListener("click", () => {
+$("newChatBtn").onclick = () => {
   activeChatId = null;
   renderAll();
   closeSidebar();
   messageInput.focus();
-});
+};
 
-document.querySelectorAll(".suggestion").forEach((button) => {
-  button.addEventListener("click", () => {
-    messageInput.value = button.dataset.prompt || "";
+document.querySelectorAll(".suggestion").forEach(btn => {
+  btn.onclick = () => {
+    messageInput.value = btn.dataset.prompt || "";
     autoResize();
     messageInput.focus();
-  });
+  };
 });
 
 messageInput.addEventListener("input", autoResize);
-
-messageInput.addEventListener("keydown", (event) => {
-  if (event.key === "Enter" && !event.shiftKey) {
-    event.preventDefault();
+messageInput.addEventListener("keydown", e => {
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
     sendMessage();
   }
 });
+$("sendBtn").onclick = sendMessage;
 
-sendBtn.addEventListener("click", sendMessage);
+modeSelect.onchange = updateMode;
+settingsModeSelect.onchange = () => {
+  modeSelect.value = settingsModeSelect.value;
+  updateMode();
+};
+$("modeLock").onclick = () => openAuth("login");
 
-modeSelect.addEventListener("change", updateMode);
+$("plusBtn").onclick = (e) => {
+  e.stopPropagation();
+  $("plusMenu").classList.toggle("hidden");
+};
 
-settingsModeSelect.addEventListener("change", () => {
-  if (!currentUser) {
+document.addEventListener("click", e => {
+  if (!e.target.closest(".plus-wrap")) $("plusMenu").classList.add("hidden");
+});
+
+$("cameraBtn").onclick = () => {
+  $("plusMenu").classList.add("hidden");
+  $("cameraInput").click();
+};
+$("photosBtn").onclick = () => {
+  $("plusMenu").classList.add("hidden");
+  $("photosInput").click();
+};
+$("filesBtn").onclick = () => {
+  $("plusMenu").classList.add("hidden");
+  $("filesInput").click();
+};
+
+$("cameraInput").onchange = e => addFiles(e.target.files, "camera");
+$("photosInput").onchange = e => addFiles(e.target.files, "photos");
+$("filesInput").onchange = e => addFiles(e.target.files, "files");
+
+$("micBtn").onclick = () => {
+  if (mediaRecorder && mediaRecorder.state === "recording") stopRecording();
+  else startRecording();
+};
+$("stopRecordingBtn").onclick = stopRecording;
+
+$("signupBtn").onclick = () => openAuth("signup");
+$("loginBtn").onclick = () => openAuth("login");
+$("accountBtn").onclick = () => {
+  closeSidebar();
+  if (currentUser) {
+    $("settingsBtn").click();
+    switchSettingsTab("account");
+  } else {
     openAuth("login");
+  }
+};
+
+$("authClose").onclick = () => closeModal($("authModal"));
+$("switchAuthMode").onclick = () => {
+  authMode = authMode === "login" ? "signup" : "login";
+  updateAuthUI();
+};
+$("authModal").onclick = e => {
+  if (e.target === $("authModal")) closeModal($("authModal"));
+};
+
+$("authForm").onsubmit = async e => {
+  e.preventDefault();
+  setAuthBusy(true);
+
+  try {
+    const email = $("emailInput").value.trim();
+    const password = $("passwordInput").value;
+
+    if (authMode === "signup") {
+      const displayName = $("displayNameInput").value.trim();
+      const result = await createUserWithEmailAndPassword(auth, email, password);
+      await updateProfile(result.user, { displayName });
+      await sendVerification(result.user);
+      $("verifyBox").classList.remove("hidden");
+    } else {
+      const result = await signInWithEmailAndPassword(auth, email, password);
+      if (!result.user.emailVerified) {
+        $("verifyBox").classList.remove("hidden");
+      } else {
+        closeModal($("authModal"));
+      }
+    }
+  } catch (error) {
+    alert(authError(error));
+  } finally {
+    setAuthBusy(false);
+  }
+};
+
+$("googleBtn").onclick = async () => {
+  setAuthBusy(true);
+  try {
+    const result = await signInWithPopup(auth, googleProvider);
+    closeModal($("authModal"));
+    updateAccountUI(result.user);
+  } catch (error) {
+    alert(authError(error));
+  } finally {
+    setAuthBusy(false);
+  }
+};
+
+$("resendVerifyBtn").onclick = async () => {
+  try {
+    await sendVerification(auth.currentUser);
+    alert("Verification email sent again.");
+  } catch (error) {
+    alert(authError(error));
+  }
+};
+
+$("checkVerifyBtn").onclick = async () => {
+  if (!auth.currentUser) return;
+  await reload(auth.currentUser);
+  if (auth.currentUser.emailVerified) {
+    closeModal($("authModal"));
+    updateAccountUI(auth.currentUser);
+  } else {
+    alert("Your email is still not verified yet.");
+  }
+};
+
+$("settingsBtn").onclick = () => {
+  closeSidebar();
+  loadOwnerSettings();
+  openModal($("settingsModal"));
+};
+$("settingsClose").onclick = () => closeModal($("settingsModal"));
+$("settingsModal").onclick = e => {
+  if (e.target === $("settingsModal")) closeModal($("settingsModal"));
+};
+
+document.querySelectorAll(".settings-tab").forEach(btn => {
+  btn.onclick = () => switchSettingsTab(btn.dataset.tab);
+});
+
+$("themeToggle").onclick = () => {
+  document.body.classList.toggle("light");
+  const light = document.body.classList.contains("light");
+  $("themeToggle").textContent = light ? "Dark mode" : "Light mode";
+  localStorage.setItem("apo_ai_theme", light ? "light" : "dark");
+};
+
+$("clearChatsBtn").onclick = () => {
+  if (!confirm("Clear all chats saved on this device?")) return;
+  chats = [];
+  activeChatId = null;
+  saveChats();
+  renderAll();
+};
+
+$("verifyFromSettingsBtn").onclick = () => {
+  closeModal($("settingsModal"));
+  openModal($("authModal"));
+  $("verifyBox").classList.remove("hidden");
+};
+
+$("logoutBtn").onclick = async () => {
+  await signOut(auth);
+  closeModal($("settingsModal"));
+};
+
+$("saveOwnerBtn").onclick = () => {
+  if (!isOwner()) {
+    alert("Owner access required.");
     return;
   }
 
-  modeSelect.value = settingsModeSelect.value;
-  updateMode();
-});
+  const settings = {
+    systemPrompt: $("ownerSystemPrompt").value.trim(),
+    images: $("ownerImagesToggle").checked,
+    voice: $("ownerVoiceToggle").checked,
+    maintenance: $("ownerMaintenanceToggle").checked
+  };
 
-modeLock.addEventListener("click", () => openAuth("login"));
+  localStorage.setItem("apo_owner_settings", JSON.stringify(settings));
+  alert("Owner settings saved on this device. Backend enforcement comes next.");
+};
 
-loginBtn.addEventListener("click", () => openAuth("login"));
-
-signupBtn.addEventListener("click", () => openAuth("signup"));
-
-accountBtn.addEventListener("click", () => {
-  closeSidebar();
-  openAuth("login");
-});
-
-authClose.addEventListener("click", () => closeModal(authModal));
-
-authModal.addEventListener("click", (event) => {
-  if (event.target === authModal) {
-    closeModal(authModal);
-  }
-});
-
-switchAuthMode.addEventListener("click", () => {
-  authMode = authMode === "login" ? "signup" : "login";
-  updateAuthUI();
-});
-
-authForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
-
-  const email = emailInput.value.trim();
-  const password = passwordInput.value;
-
-  setAuthBusy(true);
-
-  try {
-    if (authMode === "signup") {
-      const result = await createUserWithEmailAndPassword(auth, email, password);
-
-      try {
-        await updateProfile(result.user, {
-          displayName: email.split("@")[0].slice(0, 32)
-        });
-      } catch {}
-    } else {
-      await signInWithEmailAndPassword(auth, email, password);
-    }
-
-    authForm.reset();
-    closeModal(authModal);
-  } catch (error) {
-    alert(authErrorMessage(error));
-  } finally {
-    setAuthBusy(false);
-  }
-});
-
-googleBtn.addEventListener("click", async () => {
-  setAuthBusy(true);
-
-  try {
-    await signInWithPopup(auth, googleProvider);
-    closeModal(authModal);
-  } catch (error) {
-    alert(authErrorMessage(error));
-  } finally {
-    setAuthBusy(false);
-  }
-});
-
-settingsBtn.addEventListener("click", () => {
-  closeSidebar();
-  openModal(settingsModal);
-});
-
-settingsClose.addEventListener("click", () => closeModal(settingsModal));
-
-settingsModal.addEventListener("click", (event) => {
-  if (event.target === settingsModal) {
-    closeModal(settingsModal);
-  }
-});
-
-themeToggle.addEventListener("click", () => {
-  document.body.classList.toggle("light");
-
-  const light = document.body.classList.contains("light");
-  themeToggle.textContent = light ? "Dark mode" : "Light mode";
-
-  localStorage.setItem("apo_ai_theme", light ? "light" : "dark");
-});
-
-document.addEventListener("keydown", (event) => {
-  if (event.key === "Escape") {
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape") {
     closeSidebar();
-    closeModal(authModal);
-    closeModal(settingsModal);
+    closeModal($("authModal"));
+    closeModal($("settingsModal"));
+    $("plusMenu").classList.add("hidden");
   }
 });
 
-onAuthStateChanged(auth, (user) => {
+onAuthStateChanged(auth, user => {
   updateAccountUI(user);
 });
 
 if (localStorage.getItem("apo_ai_theme") === "light") {
   document.body.classList.add("light");
-  themeToggle.textContent = "Dark mode";
+  $("themeToggle").textContent = "Dark mode";
 }
 
+loadOwnerSettings();
 setModeAccess(null);
 renderAll();
 autoResize();
