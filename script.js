@@ -1,4 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
+
 import {
   getAuth,
   GoogleAuthProvider,
@@ -30,6 +31,7 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 
 const googleProvider = new GoogleAuthProvider();
+
 googleProvider.setCustomParameters({
   prompt: "select_account"
 });
@@ -43,12 +45,14 @@ const hero = $("hero");
 const messages = $("messages");
 const chatScroll = $("chatScroll");
 const messageInput = $("messageInput");
+
 const modeSelect = $("modeSelect");
 const settingsModeSelect = $("settingsModeSelect");
 
 let currentUser = null;
 let authMode = "login";
 let activeChatId = null;
+
 let chats = readJSON("apo_ai_chats", []);
 let pendingAttachments = [];
 
@@ -57,10 +61,16 @@ let recordedChunks = [];
 let recordingStartedAt = 0;
 let recordingTimer = null;
 
+
+/* =========================
+   STORAGE
+========================= */
+
 function readJSON(key, fallback) {
   try {
     return JSON.parse(
-      localStorage.getItem(key) || JSON.stringify(fallback)
+      localStorage.getItem(key) ||
+      JSON.stringify(fallback)
     );
   } catch {
     return fallback;
@@ -80,6 +90,11 @@ function makeId() {
     : `${Date.now()}-${Math.random()}`;
 }
 
+
+/* =========================
+   BASIC UI
+========================= */
+
 function escapeHtml(text) {
   return String(text)
     .replaceAll("&", "&amp;")
@@ -90,6 +105,8 @@ function escapeHtml(text) {
 }
 
 function autoResize() {
+  if (!messageInput) return;
+
   messageInput.style.height = "auto";
 
   messageInput.style.height =
@@ -100,22 +117,27 @@ function autoResize() {
 }
 
 function openSidebar() {
-  sidebar.classList.add("open");
-  sidebarOverlay.classList.add("open");
+  sidebar?.classList.add("open");
+  sidebarOverlay?.classList.add("open");
 }
 
 function closeSidebar() {
-  sidebar.classList.remove("open");
-  sidebarOverlay.classList.remove("open");
+  sidebar?.classList.remove("open");
+  sidebarOverlay?.classList.remove("open");
 }
 
-function openModal(el) {
-  el.classList.remove("hidden");
+function openModal(element) {
+  element?.classList.remove("hidden");
 }
 
-function closeModal(el) {
-  el.classList.add("hidden");
+function closeModal(element) {
+  element?.classList.add("hidden");
 }
+
+
+/* =========================
+   OWNER
+========================= */
 
 function isOwner(user = currentUser) {
   return Boolean(
@@ -135,7 +157,9 @@ function isGoogleUser(user) {
 }
 
 function canUseAccountFeatures(user) {
-  if (!user) return false;
+  if (!user) {
+    return false;
+  }
 
   return (
     isGoogleUser(user) ||
@@ -143,7 +167,14 @@ function canUseAccountFeatures(user) {
   );
 }
 
+
+/* =========================
+   CHAT LIST
+========================= */
+
 function renderChatList() {
+  if (!chatList) return;
+
   chatList.innerHTML = "";
 
   if (!chats.length) {
@@ -153,48 +184,61 @@ function renderChatList() {
     return;
   }
 
-  chats.forEach((chat) => {
-    const btn =
+  chats.forEach(chat => {
+    const button =
       document.createElement("button");
 
-    btn.type = "button";
+    button.type = "button";
 
-    btn.className =
+    button.className =
       "chat-item" +
-      (chat.id === activeChatId
-        ? " active"
-        : "");
+      (
+        chat.id === activeChatId
+          ? " active"
+          : ""
+      );
 
-    btn.innerHTML =
+    button.innerHTML =
       `<span class="chat-title">${escapeHtml(
         chat.title
       )}</span>`;
 
-    btn.onclick = () => {
+    button.onclick = () => {
       activeChatId = chat.id;
 
       renderAll();
       closeSidebar();
     };
 
-    chatList.appendChild(btn);
+    chatList.appendChild(button);
   });
 }
 
+
+/* =========================
+   MESSAGES
+========================= */
+
 function renderMessages() {
+  if (!messages) return;
+
   messages.innerHTML = "";
 
   const chat =
     chats.find(
-      c => c.id === activeChatId
+      chat =>
+        chat.id === activeChatId
     );
 
-  if (!chat || !chat.messages.length) {
-    hero.classList.remove("hidden");
+  if (
+    !chat ||
+    !chat.messages.length
+  ) {
+    hero?.classList.remove("hidden");
     return;
   }
 
-  hero.classList.add("hidden");
+  hero?.classList.add("hidden");
 
   for (const msg of chat.messages) {
     const row =
@@ -203,7 +247,9 @@ function renderMessages() {
     row.className =
       `message ${msg.role}`;
 
-    if (msg.role === "assistant") {
+    if (
+      msg.role === "assistant"
+    ) {
       const avatar =
         document.createElement("img");
 
@@ -213,7 +259,8 @@ function renderMessages() {
       avatar.src =
         "apo-logo.jpg";
 
-      avatar.alt = "APO";
+      avatar.alt =
+        "APO";
 
       row.appendChild(avatar);
     }
@@ -221,7 +268,8 @@ function renderMessages() {
     const bubble =
       document.createElement("div");
 
-    bubble.className = "bubble";
+    bubble.className =
+      "bubble";
 
     if (msg.content) {
       const text =
@@ -240,71 +288,74 @@ function renderMessages() {
       if (
         attachment.kind === "image"
       ) {
-        const img =
+        const image =
           document.createElement("img");
 
-        img.className =
+        image.className =
           "message-attachment";
 
-        img.src =
+        image.src =
           attachment.dataUrl;
 
-        img.alt =
-          attachment.name || "Image";
+        image.alt =
+          attachment.name ||
+          "Image";
 
-        bubble.appendChild(img);
+        bubble.appendChild(image);
       }
 
       else if (
         attachment.kind === "voice"
       ) {
-        const wrap =
+        const voice =
           document.createElement("div");
 
-        wrap.className =
+        voice.className =
           "voice-chip";
 
         const audio =
           document.createElement("audio");
 
         audio.controls = true;
-
         audio.src =
           attachment.dataUrl;
 
-        wrap.append(
+        voice.append(
           "🎙 Voice message "
         );
 
-        wrap.appendChild(audio);
+        voice.appendChild(audio);
 
-        bubble.appendChild(wrap);
+        bubble.appendChild(voice);
       }
 
       else {
-        const chip =
+        const file =
           document.createElement("div");
 
-        chip.className =
+        file.className =
           "file-chip";
 
-        chip.textContent =
+        file.textContent =
           `📎 ${
             attachment.name ||
             "File"
           }`;
 
-        bubble.appendChild(chip);
+        bubble.appendChild(file);
       }
     }
 
     row.appendChild(bubble);
+
     messages.appendChild(row);
   }
 
   requestAnimationFrame(() => {
-    chatScroll.scrollTop =
-      chatScroll.scrollHeight;
+    if (chatScroll) {
+      chatScroll.scrollTop =
+        chatScroll.scrollHeight;
+    }
   });
 }
 
@@ -313,27 +364,43 @@ function renderAll() {
   renderMessages();
 }
 
+
+/* =========================
+   CREATE / SEND CHAT
+========================= */
+
 function ensureChat(seed = "") {
   let chat =
     chats.find(
-      c => c.id === activeChatId
+      chat =>
+        chat.id === activeChatId
     );
 
-  if (chat) return chat;
+  if (chat) {
+    return chat;
+  }
 
   chat = {
     id: makeId(),
+
     title:
       seed.slice(0, 36) ||
       "New chat",
-    createdAt: Date.now(),
-    mode: modeSelect.value,
+
+    createdAt:
+      Date.now(),
+
+    mode:
+      modeSelect?.value ||
+      "medium",
+
     messages: []
   };
 
   chats.unshift(chat);
 
-  activeChatId = chat.id;
+  activeChatId =
+    chat.id;
 
   return chat;
 }
@@ -369,9 +436,12 @@ function addMessage(
       ).slice(0, 36);
   }
 
-  chat.mode = modeSelect.value;
+  chat.mode =
+    modeSelect?.value ||
+    "medium";
 
   saveChats();
+
   renderAll();
 }
 
@@ -379,16 +449,18 @@ function demoReply(
   text,
   attachments
 ) {
-  const pieces = [];
+  const parts = [];
 
   if (text) {
-    pieces.push(
+    parts.push(
       `You said: "${text}"`
     );
   }
 
-  if (attachments?.length) {
-    pieces.push(
+  if (
+    attachments?.length
+  ) {
+    parts.push(
       `You attached ${
         attachments.length
       } item${
@@ -399,20 +471,24 @@ function demoReply(
     );
   }
 
-  pieces.push(
-    `Mode: ${modeSelect.value}`
+  parts.push(
+    `Mode: ${
+      modeSelect?.value ||
+      "medium"
+    }`
   );
 
-  pieces.push(
-    "The real APO AI backend is the next step; this is still a frontend demo reply."
+  parts.push(
+    "The real APO AI backend is not connected yet."
   );
 
-  return pieces.join("\n\n");
+  return parts.join("\n\n");
 }
 
 function sendMessage() {
   const text =
-    messageInput.value.trim();
+    messageInput?.value
+      .trim() || "";
 
   if (
     !text &&
@@ -423,7 +499,9 @@ function sendMessage() {
 
   const attachments =
     pendingAttachments.map(
-      a => ({ ...a })
+      attachment => ({
+        ...attachment
+      })
     );
 
   addMessage(
@@ -437,9 +515,12 @@ function sendMessage() {
   pendingAttachments = [];
 
   renderAttachmentPreview();
+
   autoResize();
 
-  $("sendBtn").disabled = true;
+  if ($("sendBtn")) {
+    $("sendBtn").disabled = true;
+  }
 
   setTimeout(() => {
     addMessage(
@@ -450,24 +531,36 @@ function sendMessage() {
       )
     );
 
-    $("sendBtn").disabled = false;
-  }, 220);
+    if ($("sendBtn")) {
+      $("sendBtn").disabled = false;
+    }
+  }, 250);
 }
+
+
+/* =========================
+   MODES
+========================= */
 
 function setModeAccess(user) {
   const unlocked =
     canUseAccountFeatures(user);
 
-  modeSelect.disabled =
-    !unlocked;
+  if (modeSelect) {
+    modeSelect.disabled =
+      !unlocked;
+  }
 
-  settingsModeSelect.disabled =
-    !unlocked;
+  if (settingsModeSelect) {
+    settingsModeSelect.disabled =
+      !unlocked;
+  }
 
-  $("modeLock").classList.toggle(
-    "hidden",
-    unlocked
-  );
+  $("modeLock")
+    ?.classList.toggle(
+      "hidden",
+      unlocked
+    );
 
   if (unlocked) {
     const saved =
@@ -475,39 +568,54 @@ function setModeAccess(user) {
         "apo_ai_mode"
       );
 
-    modeSelect.value =
+    if (
       [
         "fast",
         "medium",
         "high"
       ].includes(saved)
-        ? saved
-        : "medium";
-  } else {
+    ) {
+      modeSelect.value = saved;
+    } else {
+      modeSelect.value =
+        "medium";
+    }
+  }
+
+  else if (modeSelect) {
     modeSelect.value =
       "medium";
   }
 
-  settingsModeSelect.value =
-    modeSelect.value;
+  if (
+    settingsModeSelect &&
+    modeSelect
+  ) {
+    settingsModeSelect.value =
+      modeSelect.value;
+  }
 
-  $("modeHint").textContent =
-    unlocked
-      ? `${
-          modeSelect.value[0]
-            .toUpperCase() +
-          modeSelect.value.slice(1)
-        } mode`
-      : user
-        ? "Verify email to unlock modes"
-        : "Medium • sign in to change";
+  if ($("modeHint")) {
+    $("modeHint").textContent =
+      unlocked
+        ? `${
+            modeSelect.value[0]
+              .toUpperCase() +
+            modeSelect.value.slice(1)
+          } mode`
+        : user
+          ? "Verify email to unlock modes"
+          : "Medium • sign in to change";
+  }
 
-  $("heroSubtitle").textContent =
-    unlocked
-      ? "Choose a mode and start a conversation."
-      : user
-        ? "Verify your email to unlock all APO AI modes."
-        : "Sign in to unlock all APO AI modes.";
+  if ($("heroSubtitle")) {
+    $("heroSubtitle").textContent =
+      unlocked
+        ? "Choose a mode and start a conversation."
+        : user
+          ? "Verify your email to unlock all APO AI modes."
+          : "Sign in to unlock all APO AI modes.";
+  }
 }
 
 function updateMode() {
@@ -516,13 +624,27 @@ function updateMode() {
     return;
   }
 
+  if (
+    !canUseAccountFeatures(
+      currentUser
+    )
+  ) {
+    alert(
+      "Verify your email first."
+    );
+
+    return;
+  }
+
   localStorage.setItem(
     "apo_ai_mode",
     modeSelect.value
   );
 
-  settingsModeSelect.value =
-    modeSelect.value;
+  if (settingsModeSelect) {
+    settingsModeSelect.value =
+      modeSelect.value;
+  }
 
   $("modeHint").textContent =
     `${
@@ -531,6 +653,11 @@ function updateMode() {
       modeSelect.value.slice(1)
     } mode`;
 }
+
+
+/* =========================
+   ACCOUNT UI
+========================= */
 
 function updateAccountUI(user) {
   currentUser = user;
@@ -543,88 +670,131 @@ function updateAccountUI(user) {
       user.email?.split("@")[0] ||
       "Account";
 
-    $("loginBtn").textContent =
-      name;
+    if ($("loginBtn")) {
+      $("loginBtn").textContent =
+        name;
+    }
 
-    $("accountBtn").textContent =
-      name;
+    if ($("accountBtn")) {
+      $("accountBtn").textContent =
+        name;
+    }
 
     $("signupBtn")
-      .classList.add("hidden");
+      ?.classList.add(
+        "hidden"
+      );
 
-    $("settingsAccountName")
-      .textContent = name;
+    if ($("settingsAccountName")) {
+      $("settingsAccountName")
+        .textContent =
+        name;
+    }
 
-    $("settingsAccountEmail")
-      .textContent =
-      user.email || "";
+    if ($("settingsAccountEmail")) {
+      $("settingsAccountEmail")
+        .textContent =
+        user.email || "";
+    }
 
-    $("accountAvatar")
-      .textContent =
-      name
-        .slice(0, 1)
-        .toUpperCase();
+    if ($("accountAvatar")) {
+      $("accountAvatar")
+        .textContent =
+        name
+          .slice(0, 1)
+          .toUpperCase();
+    }
 
-    $("verificationStatus")
-      .textContent =
-      isGoogleUser(user)
-        ? "Verified with Google"
-        : user.emailVerified
-          ? "Verified"
-          : "Not verified";
+    if ($("verificationStatus")) {
+      $("verificationStatus")
+        .textContent =
+        isGoogleUser(user)
+          ? "Verified with Google"
+          : user.emailVerified
+            ? "Verified"
+            : "Not verified";
+    }
 
     $("verifyFromSettingsBtn")
-      .classList.toggle(
+      ?.classList.toggle(
         "hidden",
         user.emailVerified ||
         isGoogleUser(user)
       );
 
     $("logoutBtn")
-      .classList.remove("hidden");
+      ?.classList.remove(
+        "hidden"
+      );
 
     $("ownerTabBtn")
-      .classList.toggle(
+      ?.classList.toggle(
         "hidden",
         !isOwner(user)
       );
   }
 
   else {
-    $("loginBtn").textContent =
-      "Log in";
+    if ($("loginBtn")) {
+      $("loginBtn").textContent =
+        "Log in";
+    }
 
-    $("accountBtn").textContent =
-      "Log in";
+    if ($("accountBtn")) {
+      $("accountBtn").textContent =
+        "Log in";
+    }
 
     $("signupBtn")
-      .classList.remove("hidden");
+      ?.classList.remove(
+        "hidden"
+      );
 
-    $("settingsAccountName")
-      .textContent =
-      "Not signed in";
+    if ($("settingsAccountName")) {
+      $("settingsAccountName")
+        .textContent =
+        "Not signed in";
+    }
 
-    $("settingsAccountEmail")
-      .textContent =
-      "Sign in to sync your account.";
+    if ($("settingsAccountEmail")) {
+      $("settingsAccountEmail")
+        .textContent =
+        "Sign in to sync your account.";
+    }
 
-    $("accountAvatar")
-      .textContent = "A";
+    if ($("accountAvatar")) {
+      $("accountAvatar")
+        .textContent =
+        "A";
+    }
 
-    $("verificationStatus")
-      .textContent =
-      "Not signed in";
+    if ($("verificationStatus")) {
+      $("verificationStatus")
+        .textContent =
+        "Not signed in";
+    }
 
     $("verifyFromSettingsBtn")
-      .classList.add("hidden");
+      ?.classList.add(
+        "hidden"
+      );
 
     $("logoutBtn")
-      .classList.add("hidden");
+      ?.classList.add(
+        "hidden"
+      );
 
     $("ownerTabBtn")
-      .classList.add("hidden");
+      ?.classList.add(
+        "hidden"
+      );
   }
 }
+
+
+/* =========================
+   AUTH UI
+========================= */
 
 function updateAuthUI() {
   const signup =
@@ -646,18 +816,22 @@ function updateAuthUI() {
       : "Log in";
 
   $("displayNameWrap")
-    .classList.toggle(
+    ?.classList.toggle(
       "hidden",
       !signup
     );
 
-  $("displayNameInput").required =
-    signup;
+  if ($("displayNameInput")) {
+    $("displayNameInput").required =
+      signup;
+  }
 
-  $("passwordInput").autocomplete =
-    signup
-      ? "new-password"
-      : "current-password";
+  if ($("passwordInput")) {
+    $("passwordInput").autocomplete =
+      signup
+        ? "new-password"
+        : "current-password";
+  }
 
   $("switchAuthMode").textContent =
     signup
@@ -665,14 +839,16 @@ function updateAuthUI() {
       : "Don't have an account? Sign up";
 
   $("verifyBox")
-    .classList.add("hidden");
+    ?.classList.add(
+      "hidden"
+    );
 }
 
 function openAuth(
   mode = "login"
 ) {
   if (currentUser) {
-    $("settingsBtn").click();
+    $("settingsBtn")?.click();
     return;
   }
 
@@ -685,31 +861,8 @@ function openAuth(
   );
 }
 
-async function finishGoogleRedirect() {
-  try {
-    const result =
-      await getRedirectResult(auth);
-
-    if (result?.user) {
-      closeModal(
-        $("authModal")
-      );
-
-      updateAccountUI(
-        result.user
-      );
-    }
-  }
-
-  catch (error) {
-    alert(
-      authError(error)
-    );
-  }
-}
-
 function authError(error) {
-  const map = {
+  const errors = {
     "auth/email-already-in-use":
       "That email already has an account.",
 
@@ -732,52 +885,102 @@ function authError(error) {
       "Add apo-official.github.io to Firebase Authentication → Settings → Authorized domains.",
 
     "auth/network-request-failed":
-      "Network error. Check your connection and try again.",
+      "Network error. Check your internet connection.",
 
     "auth/operation-not-allowed":
-      "Google sign-in is not enabled in Firebase Authentication.",
-
-    "auth/cancelled-popup-request":
-      "Another Google sign-in window was already opened.",
+      "This sign-in method is not enabled in Firebase.",
 
     "auth/web-storage-unsupported":
-      "This browser blocks the storage Firebase needs for Google sign-in. Open the site in Chrome or another full browser."
+      "This browser blocks Firebase authentication storage. Try Chrome."
   };
 
   return (
-    map[error?.code] ||
+    errors[error?.code] ||
     error?.message ||
     "Authentication failed."
   );
 }
 
 function setAuthBusy(busy) {
-  $("authSubmit").disabled =
-    busy;
+  if ($("authSubmit")) {
+    $("authSubmit").disabled =
+      busy;
 
-  $("googleBtn").disabled =
-    busy;
+    $("authSubmit").textContent =
+      busy
+        ? "Please wait..."
+        : authMode === "signup"
+          ? "Create account"
+          : "Log in";
+  }
 
-  $("authSubmit").textContent =
-    busy
-      ? "Please wait..."
-      : authMode === "signup"
-        ? "Create account"
-        : "Log in";
+  if ($("googleBtn")) {
+    $("googleBtn").disabled =
+      busy;
+  }
 }
+
+
+/* =========================
+   EMAIL VERIFY
+========================= */
 
 async function sendVerification(
   user = auth.currentUser
 ) {
-  if (!user) return;
+  if (!user) {
+    return;
+  }
 
   await sendEmailVerification(
     user
   );
 
   $("verifyBox")
-    .classList.remove("hidden");
+    ?.classList.remove(
+      "hidden"
+    );
 }
+
+
+/* =========================
+   GOOGLE REDIRECT
+========================= */
+
+async function finishGoogleRedirect() {
+  try {
+    const result =
+      await getRedirectResult(
+        auth
+      );
+
+    if (result?.user) {
+      closeModal(
+        $("authModal")
+      );
+
+      updateAccountUI(
+        result.user
+      );
+    }
+  }
+
+  catch (error) {
+    console.error(
+      "Google redirect error:",
+      error
+    );
+
+    alert(
+      authError(error)
+    );
+  }
+}
+
+
+/* =========================
+   FILES / IMAGES
+========================= */
 
 function fileToDataUrl(file) {
   return new Promise(
@@ -785,14 +988,18 @@ function fileToDataUrl(file) {
       const reader =
         new FileReader();
 
-      reader.onerror = reject;
+      reader.onerror =
+        reject;
 
       reader.onload =
-        () => resolve(
-          reader.result
-        );
+        () =>
+          resolve(
+            reader.result
+          );
 
-      reader.readAsDataURL(file);
+      reader.readAsDataURL(
+        file
+      );
     }
   );
 }
@@ -803,28 +1010,48 @@ async function addFiles(
 ) {
   for (
     const file
-    of Array.from(files)
+    of Array.from(files || [])
   ) {
-    const isImage =
-      file.type.startsWith(
-        "image/"
+    try {
+      const isImage =
+        file.type.startsWith(
+          "image/"
+        );
+
+      const dataUrl =
+        await fileToDataUrl(
+          file
+        );
+
+      pendingAttachments.push({
+        id: makeId(),
+
+        kind:
+          isImage
+            ? "image"
+            : "file",
+
+        name:
+          file.name,
+
+        type:
+          file.type,
+
+        size:
+          file.size,
+
+        source,
+
+        dataUrl
+      });
+    }
+
+    catch (error) {
+      console.error(
+        "File error:",
+        error
       );
-
-    const dataUrl =
-      await fileToDataUrl(file);
-
-    pendingAttachments.push({
-      id: makeId(),
-      kind:
-        isImage
-          ? "image"
-          : "file",
-      name: file.name,
-      type: file.type,
-      size: file.size,
-      source,
-      dataUrl
-    });
+    }
   }
 
   renderAttachmentPreview();
@@ -834,300 +1061,66 @@ function renderAttachmentPreview() {
   const strip =
     $("attachmentPreview");
 
+  if (!strip) {
+    return;
+  }
+
   strip.innerHTML = "";
 
   if (
     !pendingAttachments.length
   ) {
-    strip.classList.add("hidden");
+    strip.classList.add(
+      "hidden"
+    );
+
     return;
   }
 
-  strip.classList.remove("hidden");
+  strip.classList.remove(
+    "hidden"
+  );
 
   pendingAttachments.forEach(
-    (att) => {
+    attachment => {
       const item =
-        document.createElement("div");
+        document.createElement(
+          "div"
+        );
 
       item.className =
         "preview-item";
 
       if (
-        att.kind === "image"
+        attachment.kind ===
+        "image"
       ) {
-        const img =
-          document.createElement("img");
+        const image =
+          document.createElement(
+            "img"
+          );
 
-        img.src =
-          att.dataUrl;
+        image.src =
+          attachment.dataUrl;
 
-        img.alt =
-          att.name;
+        image.alt =
+          attachment.name;
 
-        item.appendChild(img);
+        item.appendChild(
+          image
+        );
       }
 
       else if (
-        att.kind === "voice"
+        attachment.kind ===
+        "voice"
       ) {
         const label =
-          document.createElement("div");
+          document.createElement(
+            "div"
+          );
 
         label.className =
           "preview-file";
 
-        label.textContent =
-          "🎙 Voice message";
-
-        item.appendChild(label);
-      }
-
-      else {
-        const label =
-          document.createElement("div");
-
-        label.className =
-          "preview-file";
-
-        label.textContent =
-          `📎 ${att.name}`;
-
-        item.appendChild(label);
-      }
-
-      const remove =
-        document.createElement("button");
-
-      remove.className =
-        "preview-remove";
-
-      remove.type = "button";
-
-      remove.textContent = "×";
-
-      remove.onclick = () => {
-        pendingAttachments =
-          pendingAttachments.filter(
-            x => x.id !== att.id
-          );
-
-        renderAttachmentPreview();
-      };
-
-      item.appendChild(remove);
-
-      strip.appendChild(item);
-    }
-  );
-}
-
-async function startRecording() {
-  if (
-    !navigator.mediaDevices
-      ?.getUserMedia ||
-    typeof MediaRecorder ===
-      "undefined"
-  ) {
-    alert(
-      "Voice recording is not supported in this browser."
-    );
-
-    return;
-  }
-
-  try {
-    const stream =
-      await navigator.mediaDevices
-        .getUserMedia({
-          audio: true
-        });
-
-    recordedChunks = [];
-
-    mediaRecorder =
-      new MediaRecorder(stream);
-
-    mediaRecorder.ondataavailable =
-      (e) => {
-        if (e.data.size) {
-          recordedChunks.push(
-            e.data
-          );
-        }
-      };
-
-    mediaRecorder.onstop =
-      async () => {
-        clearInterval(
-          recordingTimer
-        );
-
-        $("recordingToast")
-          .classList.add(
-            "hidden"
-          );
-
-        $("micBtn")
-          .classList.remove(
-            "recording"
-          );
-
-        const blob =
-          new Blob(
-            recordedChunks,
-            {
-              type:
-                mediaRecorder.mimeType ||
-                "audio/webm"
-            }
-          );
-
-        const file =
-          new File(
-            [blob],
-            `voice-${Date.now()}.webm`,
-            {
-              type: blob.type
-            }
-          );
-
-        const dataUrl =
-          await fileToDataUrl(file);
-
-        pendingAttachments.push({
-          id: makeId(),
-          kind: "voice",
-          name: file.name,
-          type: file.type,
-          size: file.size,
-          dataUrl
-        });
-
-        stream
-          .getTracks()
-          .forEach(
-            track =>
-              track.stop()
-          );
-
-        renderAttachmentPreview();
-      };
-
-    mediaRecorder.start();
-
-    recordingStartedAt =
-      Date.now();
-
-    $("recordingToast")
-      .classList.remove(
-        "hidden"
-      );
-
-    $("micBtn")
-      .classList.add(
-        "recording"
-      );
-
-    const tick = () => {
-      const seconds =
-        Math.floor(
-          (
-            Date.now() -
-            recordingStartedAt
-          ) / 1000
-        );
-
-      const m =
-        Math.floor(
-          seconds / 60
-        );
-
-      const s =
-        String(
-          seconds % 60
-        ).padStart(
-          2,
-          "0"
-        );
-
-      $("recordingTime")
-        .textContent =
-        `Recording ${m}:${s}`;
-    };
-
-    tick();
-
-    recordingTimer =
-      setInterval(
-        tick,
-        500
-      );
-  }
-
-  catch {
-    alert(
-      "Microphone permission was blocked or unavailable."
-    );
-  }
-}
-
-function stopRecording() {
-  if (
-    mediaRecorder &&
-    mediaRecorder.state !==
-      "inactive"
-  ) {
-    mediaRecorder.stop();
-  }
-}
-
-function switchSettingsTab(
-  name
-) {
-  document
-    .querySelectorAll(
-      ".settings-tab"
-    )
-    .forEach(btn => {
-      btn.classList.toggle(
-        "active",
-        btn.dataset.tab ===
-          name
-      );
-    });
-
-  document
-    .querySelectorAll(
-      ".settings-panel"
-    )
-    .forEach(panel => {
-      panel.classList.toggle(
-        "active",
-        panel.dataset.panel ===
-          name
-      );
-    });
-}
-
-function loadOwnerSettings() {
-  const owner =
-    readJSON(
-      "apo_owner_settings",
-      {
-        systemPrompt:
-          "You are APO AI. Be helpful, clear, and concise.",
-        images: true,
-        voice: true,
-        maintenance: false
-      }
-    );
-
-  $("ownerSystemPrompt").value =
-    owner.systemPrompt || "";
-
-  $("ownerImagesToggle").checked =
-    owner.images !== false;
-
-  $("ownerVoiceToggle").checked =
-    owner.voice !== fa
+        label.text
