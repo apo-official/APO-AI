@@ -1316,3 +1316,794 @@ function loadOwnerSettings() {
       owner.maintenance === true;
   }
                              }
+
+/* =========================
+   BUTTON EVENTS
+========================= */
+
+$("menuBtn")?.addEventListener("click", () => {
+  if (sidebar?.classList.contains("open")) {
+    closeSidebar();
+  } else {
+    openSidebar();
+  }
+});
+
+sidebarOverlay?.addEventListener(
+  "click",
+  closeSidebar
+);
+
+$("homeBtn")?.addEventListener("click", () => {
+  activeChatId = null;
+  renderAll();
+  closeSidebar();
+});
+
+$("newChatBtn")?.addEventListener("click", () => {
+  activeChatId = null;
+  renderAll();
+  closeSidebar();
+  messageInput?.focus();
+});
+
+
+/* SUGGESTIONS */
+
+document
+  .querySelectorAll(".suggestion")
+  .forEach(button => {
+    button.addEventListener("click", () => {
+      if (!messageInput) return;
+
+      messageInput.value =
+        button.dataset.prompt || "";
+
+      autoResize();
+      messageInput.focus();
+    });
+  });
+
+
+/* MESSAGE INPUT + SEND */
+
+messageInput?.addEventListener(
+  "input",
+  autoResize
+);
+
+messageInput?.addEventListener(
+  "keydown",
+  event => {
+    if (
+      event.key === "Enter" &&
+      !event.shiftKey
+    ) {
+      event.preventDefault();
+      sendMessage();
+    }
+  }
+);
+
+$("sendBtn")?.addEventListener(
+  "click",
+  sendMessage
+);
+
+
+/* MODES */
+
+modeSelect?.addEventListener(
+  "change",
+  updateMode
+);
+
+settingsModeSelect?.addEventListener(
+  "change",
+  () => {
+    if (!modeSelect) return;
+
+    modeSelect.value =
+      settingsModeSelect.value;
+
+    updateMode();
+  }
+);
+
+$("modeLock")?.addEventListener(
+  "click",
+  () => openAuth("login")
+);
+
+
+/* + MENU */
+
+$("plusBtn")?.addEventListener(
+  "click",
+  event => {
+    event.stopPropagation();
+
+    $("plusMenu")
+      ?.classList.toggle("hidden");
+  }
+);
+
+document.addEventListener(
+  "click",
+  event => {
+    if (
+      !event.target.closest(".plus-wrap")
+    ) {
+      $("plusMenu")
+        ?.classList.add("hidden");
+    }
+  }
+);
+
+
+/* CAMERA / PHOTOS / FILES */
+
+$("cameraBtn")?.addEventListener(
+  "click",
+  () => {
+    $("plusMenu")
+      ?.classList.add("hidden");
+
+    $("cameraInput")?.click();
+  }
+);
+
+$("photosBtn")?.addEventListener(
+  "click",
+  () => {
+    $("plusMenu")
+      ?.classList.add("hidden");
+
+    $("photosInput")?.click();
+  }
+);
+
+$("filesBtn")?.addEventListener(
+  "click",
+  () => {
+    $("plusMenu")
+      ?.classList.add("hidden");
+
+    $("filesInput")?.click();
+  }
+);
+
+$("cameraInput")?.addEventListener(
+  "change",
+  event => {
+    addFiles(
+      event.target.files,
+      "camera"
+    );
+
+    event.target.value = "";
+  }
+);
+
+$("photosInput")?.addEventListener(
+  "change",
+  event => {
+    addFiles(
+      event.target.files,
+      "photos"
+    );
+
+    event.target.value = "";
+  }
+);
+
+$("filesInput")?.addEventListener(
+  "change",
+  event => {
+    addFiles(
+      event.target.files,
+      "files"
+    );
+
+    event.target.value = "";
+  }
+);
+
+
+/* VOICE */
+
+$("micBtn")?.addEventListener(
+  "click",
+  () => {
+    if (
+      mediaRecorder &&
+      mediaRecorder.state === "recording"
+    ) {
+      stopRecording();
+    } else {
+      startRecording();
+    }
+  }
+);
+
+$("stopRecordingBtn")
+  ?.addEventListener(
+    "click",
+    stopRecording
+  );
+
+
+/* LOGIN / SIGNUP */
+
+$("signupBtn")
+  ?.addEventListener(
+    "click",
+    () => openAuth("signup")
+  );
+
+$("loginBtn")
+  ?.addEventListener(
+    "click",
+    () => openAuth("login")
+  );
+
+$("accountBtn")
+  ?.addEventListener(
+    "click",
+    () => {
+      closeSidebar();
+
+      if (currentUser) {
+        $("settingsBtn")?.click();
+        switchSettingsTab("account");
+      } else {
+        openAuth("login");
+      }
+    }
+  );
+
+
+/* AUTH MODAL */
+
+$("authClose")
+  ?.addEventListener(
+    "click",
+    () =>
+      closeModal(
+        $("authModal")
+      )
+  );
+
+$("switchAuthMode")
+  ?.addEventListener(
+    "click",
+    () => {
+      authMode =
+        authMode === "login"
+          ? "signup"
+          : "login";
+
+      updateAuthUI();
+    }
+  );
+
+$("authModal")
+  ?.addEventListener(
+    "click",
+    event => {
+      if (
+        event.target ===
+        $("authModal")
+      ) {
+        closeModal(
+          $("authModal")
+        );
+      }
+    }
+  );
+
+
+/* EMAIL / PASSWORD AUTH */
+
+$("authForm")
+  ?.addEventListener(
+    "submit",
+    async event => {
+      event.preventDefault();
+
+      setAuthBusy(true);
+
+      try {
+        const email =
+          $("emailInput")
+            ?.value.trim() || "";
+
+        const password =
+          $("passwordInput")
+            ?.value || "";
+
+        if (authMode === "signup") {
+          const displayName =
+            $("displayNameInput")
+              ?.value.trim() || "";
+
+          if (!displayName) {
+            alert(
+              "Choose a display name."
+            );
+
+            return;
+          }
+
+          const result =
+            await createUserWithEmailAndPassword(
+              auth,
+              email,
+              password
+            );
+
+          await updateProfile(
+            result.user,
+            {
+              displayName
+            }
+          );
+
+          await sendVerification(
+            result.user
+          );
+
+          $("verifyBox")
+            ?.classList.remove(
+              "hidden"
+            );
+        } else {
+          const result =
+            await signInWithEmailAndPassword(
+              auth,
+              email,
+              password
+            );
+
+          if (
+            !result.user.emailVerified &&
+            !isGoogleUser(result.user)
+          ) {
+            $("verifyBox")
+              ?.classList.remove(
+                "hidden"
+              );
+          } else {
+            closeModal(
+              $("authModal")
+            );
+          }
+        }
+      } catch (error) {
+        console.error(error);
+
+        alert(
+          authError(error)
+        );
+      } finally {
+        setAuthBusy(false);
+      }
+    }
+  );
+
+
+/* GOOGLE AUTH */
+
+$("googleBtn")
+  ?.addEventListener(
+    "click",
+    async () => {
+      setAuthBusy(true);
+
+      try {
+        const mobile =
+          /Android|iPhone|iPad|iPod/i
+            .test(
+              navigator.userAgent
+            );
+
+        if (mobile) {
+          await signInWithRedirect(
+            auth,
+            googleProvider
+          );
+
+          return;
+        }
+
+        const result =
+          await signInWithPopup(
+            auth,
+            googleProvider
+          );
+
+        closeModal(
+          $("authModal")
+        );
+
+        updateAccountUI(
+          result.user
+        );
+      } catch (error) {
+        console.error(
+          "Google login:",
+          error
+        );
+
+        if (
+          error?.code ===
+            "auth/popup-blocked" ||
+          error?.code ===
+            "auth/web-storage-unsupported"
+        ) {
+          try {
+            await signInWithRedirect(
+              auth,
+              googleProvider
+            );
+
+            return;
+          } catch (
+            redirectError
+          ) {
+            alert(
+              authError(
+                redirectError
+              )
+            );
+          }
+        } else {
+          alert(
+            authError(error)
+          );
+        }
+      } finally {
+        setAuthBusy(false);
+      }
+    }
+  );
+
+
+/* EMAIL VERIFICATION */
+
+$("resendVerifyBtn")
+  ?.addEventListener(
+    "click",
+    async () => {
+      try {
+        await sendVerification(
+          auth.currentUser
+        );
+
+        alert(
+          "Verification email sent again."
+        );
+      } catch (error) {
+        alert(
+          authError(error)
+        );
+      }
+    }
+  );
+
+$("checkVerifyBtn")
+  ?.addEventListener(
+    "click",
+    async () => {
+      if (!auth.currentUser) {
+        return;
+      }
+
+      try {
+        await reload(
+          auth.currentUser
+        );
+
+        if (
+          auth.currentUser
+            .emailVerified
+        ) {
+          closeModal(
+            $("authModal")
+          );
+
+          updateAccountUI(
+            auth.currentUser
+          );
+
+          alert(
+            "Email verified!"
+          );
+        } else {
+          alert(
+            "Your email is still not verified yet."
+          );
+        }
+      } catch (error) {
+        alert(
+          authError(error)
+        );
+      }
+    }
+  );
+
+
+/* SETTINGS */
+
+$("settingsBtn")
+  ?.addEventListener(
+    "click",
+    () => {
+      closeSidebar();
+
+      loadOwnerSettings();
+
+      openModal(
+        $("settingsModal")
+      );
+    }
+  );
+
+$("settingsClose")
+  ?.addEventListener(
+    "click",
+    () =>
+      closeModal(
+        $("settingsModal")
+      )
+  );
+
+$("settingsModal")
+  ?.addEventListener(
+    "click",
+    event => {
+      if (
+        event.target ===
+        $("settingsModal")
+      ) {
+        closeModal(
+          $("settingsModal")
+        );
+      }
+    }
+  );
+
+document
+  .querySelectorAll(
+    ".settings-tab"
+  )
+  .forEach(
+    button => {
+      button.addEventListener(
+        "click",
+        () => {
+          switchSettingsTab(
+            button.dataset.tab
+          );
+        }
+      );
+    }
+  );
+
+
+/* THEME */
+
+$("themeToggle")
+  ?.addEventListener(
+    "click",
+    () => {
+      document.body
+        .classList.toggle(
+          "light"
+        );
+
+      const light =
+        document.body
+          .classList.contains(
+            "light"
+          );
+
+      $("themeToggle")
+        .textContent =
+        light
+          ? "Dark mode"
+          : "Light mode";
+
+      localStorage.setItem(
+        "apo_ai_theme",
+        light
+          ? "light"
+          : "dark"
+      );
+    }
+  );
+
+
+/* CLEAR CHATS */
+
+$("clearChatsBtn")
+  ?.addEventListener(
+    "click",
+    () => {
+      if (
+        !confirm(
+          "Clear all chats saved on this device?"
+        )
+      ) {
+        return;
+      }
+
+      chats = [];
+      activeChatId = null;
+
+      saveChats();
+      renderAll();
+    }
+  );
+
+
+/* VERIFY FROM SETTINGS */
+
+$("verifyFromSettingsBtn")
+  ?.addEventListener(
+    "click",
+    async () => {
+      if (!auth.currentUser) {
+        return;
+      }
+
+      try {
+        await sendVerification(
+          auth.currentUser
+        );
+
+        closeModal(
+          $("settingsModal")
+        );
+
+        openModal(
+          $("authModal")
+        );
+
+        $("verifyBox")
+          ?.classList.remove(
+            "hidden"
+          );
+      } catch (error) {
+        alert(
+          authError(error)
+        );
+      }
+    }
+  );
+
+
+/* LOGOUT */
+
+$("logoutBtn")
+  ?.addEventListener(
+    "click",
+    async () => {
+      await signOut(auth);
+
+      closeModal(
+        $("settingsModal")
+      );
+    }
+  );
+
+
+/* OWNER CONTROLS */
+
+$("saveOwnerBtn")
+  ?.addEventListener(
+    "click",
+    () => {
+      if (!isOwner()) {
+        alert(
+          "Owner access required."
+        );
+
+        return;
+      }
+
+      const settings = {
+        systemPrompt:
+          $("ownerSystemPrompt")
+            ?.value.trim() || "",
+
+        images:
+          $("ownerImagesToggle")
+            ?.checked !== false,
+
+        voice:
+          $("ownerVoiceToggle")
+            ?.checked !== false,
+
+        maintenance:
+          $("ownerMaintenanceToggle")
+            ?.checked === true
+      };
+
+      localStorage.setItem(
+        "apo_owner_settings",
+        JSON.stringify(
+          settings
+        )
+      );
+
+      alert(
+        "Owner settings saved."
+      );
+    }
+  );
+
+
+/* ESCAPE KEY */
+
+document.addEventListener(
+  "keydown",
+  event => {
+    if (event.key === "Escape") {
+      closeSidebar();
+
+      closeModal(
+        $("authModal")
+      );
+
+      closeModal(
+        $("settingsModal")
+      );
+
+      $("plusMenu")
+        ?.classList.add(
+          "hidden"
+        );
+    }
+  }
+);
+
+
+/* FIREBASE AUTH STATE */
+
+onAuthStateChanged(
+  auth,
+  user => {
+    updateAccountUI(user);
+  }
+);
+
+
+/* STARTUP */
+
+if (
+  localStorage.getItem(
+    "apo_ai_theme"
+  ) === "light"
+) {
+  document.body
+    .classList.add(
+      "light"
+    );
+
+  if ($("themeToggle")) {
+    $("themeToggle")
+      .textContent =
+      "Dark mode";
+  }
+}
+
+finishGoogleRedirect();
+
+loadOwnerSettings();
+
+setModeAccess(null);
+
+renderAll();
+
+autoResize();
