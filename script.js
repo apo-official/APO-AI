@@ -1058,69 +1058,261 @@ async function addFiles(
 }
 
 function renderAttachmentPreview() {
-  const strip =
-    $("attachmentPreview");
+  const strip = $("attachmentPreview");
 
-  if (!strip) {
-    return;
-  }
+  if (!strip) return;
 
   strip.innerHTML = "";
 
+  if (!pendingAttachments.length) {
+    strip.classList.add("hidden");
+    return;
+  }
+
+  strip.classList.remove("hidden");
+
+  pendingAttachments.forEach((attachment) => {
+    const item = document.createElement("div");
+    item.className = "preview-item";
+
+    if (attachment.kind === "image") {
+      const image = document.createElement("img");
+
+      image.src = attachment.dataUrl;
+      image.alt = attachment.name || "Image";
+
+      item.appendChild(image);
+    }
+
+    else if (attachment.kind === "voice") {
+      const label = document.createElement("div");
+
+      label.className = "preview-file";
+      label.textContent = "🎙 Voice message";
+
+      item.appendChild(label);
+    }
+
+    else {
+      const label = document.createElement("div");
+
+      label.className = "preview-file";
+      label.textContent =
+        "📎 " + (attachment.name || "File");
+
+      item.appendChild(label);
+    }
+
+    const remove = document.createElement("button");
+
+    remove.className = "preview-remove";
+    remove.type = "button";
+    remove.textContent = "×";
+
+    remove.onclick = () => {
+      pendingAttachments =
+        pendingAttachments.filter(
+          x => x.id !== attachment.id
+        );
+
+      renderAttachmentPreview();
+    };
+
+    item.appendChild(remove);
+    strip.appendChild(item);
+  });
+}
+
+async function startRecording() {
   if (
-    !pendingAttachments.length
+    !navigator.mediaDevices?.getUserMedia ||
+    typeof MediaRecorder === "undefined"
   ) {
-    strip.classList.add(
-      "hidden"
+    alert(
+      "Voice recording is not supported in this browser."
     );
 
     return;
   }
 
-  strip.classList.remove(
-    "hidden"
-  );
+  try {
+    const stream =
+      await navigator.mediaDevices.getUserMedia({
+        audio: true
+      });
 
-  pendingAttachments.forEach(
-    attachment => {
-      const item =
-        document.createElement(
-          "div"
-        );
+    recordedChunks = [];
 
-      item.className =
-        "preview-item";
+    mediaRecorder =
+      new MediaRecorder(stream);
 
-      if (
-        attachment.kind ===
-        "image"
-      ) {
-        const image =
-          document.createElement(
-            "img"
-          );
-
-        image.src =
-          attachment.dataUrl;
-
-        image.alt =
-          attachment.name;
-
-        item.appendChild(
-          image
-        );
+    mediaRecorder.ondataavailable = (event) => {
+      if (event.data.size > 0) {
+        recordedChunks.push(event.data);
       }
+    };
 
-      else if (
-        attachment.kind ===
-        "voice"
-      ) {
-        const label =
-          document.createElement(
-            "div"
-          );
+    mediaRecorder.onstop = async () => {
+      clearInterval(recordingTimer);
 
-        label.className =
-          "preview-file";
+      $("recordingToast")
+        ?.classList.add("hidden");
 
-        label.text
+      $("micBtn")
+        ?.classList.remove("recording");
+
+      const blob = new Blob(
+        recordedChunks,
+        {
+          type:
+            mediaRecorder.mimeType ||
+            "audio/webm"
+        }
+      );
+
+      const file = new File(
+        [blob],
+        "voice-" + Date.now() + ".webm",
+        {
+          type: blob.type
+        }
+      );
+
+      const dataUrl =
+        await fileToDataUrl(file);
+
+      pendingAttachments.push({
+        id: makeId(),
+        kind: "voice",
+        name: file.name,
+        type: file.type,
+        size: file.size,
+        dataUrl
+      });
+
+      stream
+        .getTracks()
+        .forEach(
+          track => track.stop()
+        );
+
+      renderAttachmentPreview();
+    };
+
+    mediaRecorder.start();
+
+    recordingStartedAt =
+      Date.now();
+
+    $("recordingToast")
+      ?.classList.remove("hidden");
+
+    $("micBtn")
+      ?.classList.add("recording");
+
+    const updateTimer = () => {
+      const seconds =
+        Math.floor(
+          (
+            Date.now() -
+            recordingStartedAt
+          ) / 1000
+        );
+
+      const minutes =
+        Math.floor(seconds / 60);
+
+      const remaining =
+        String(
+          seconds % 60
+        ).padStart(2, "0");
+
+      if ($("recordingTime")) {
+        $("recordingTime").textContent =
+          "Recording " +
+          minutes +
+          ":" +
+          remaining;
+      }
+    };
+
+    updateTimer();
+
+    recordingTimer =
+      setInterval(
+        updateTimer,
+        500
+      );
+  }
+
+  catch (error) {
+    console.error(error);
+
+    alert(
+      "Microphone permission was blocked or unavailable."
+    );
+  }
+}
+
+function stopRecording() {
+  if (
+    mediaRecorder &&
+    mediaRecorder.state !== "inactive"
+  ) {
+    mediaRecorder.stop();
+  }
+}
+
+function switchSettingsTab(name) {
+  document
+    .querySelectorAll(".settings-tab")
+    .forEach(button => {
+      button.classList.toggle(
+        "active",
+        button.dataset.tab === name
+      );
+    });
+
+  document
+    .querySelectorAll(".settings-panel")
+    .forEach(panel => {
+      panel.classList.toggle(
+        "active",
+        panel.dataset.panel === name
+      );
+    });
+}
+
+function loadOwnerSettings() {
+  const owner =
+    readJSON(
+      "apo_owner_settings",
+      {
+        systemPrompt:
+          "You are APO AI. Be helpful, clear, and concise.",
+        images: true,
+        voice: true,
+        maintenance: false
+      }
+    );
+
+  if ($("ownerSystemPrompt")) {
+    $("ownerSystemPrompt").value =
+      owner.systemPrompt || "";
+  }
+
+  if ($("ownerImagesToggle")) {
+    $("ownerImagesToggle").checked =
+      owner.images !== false;
+  }
+
+  if ($("ownerVoiceToggle")) {
+    $("ownerVoiceToggle").checked =
+      owner.voice !== false;
+  }
+
+  if ($("ownerMaintenanceToggle")) {
+    $("ownerMaintenanceToggle").checked =
+      owner.maintenance === true;
+  }
+                             }
