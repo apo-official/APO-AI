@@ -485,15 +485,11 @@ function demoReply(
   return parts.join("\n\n");
 }
 
-function sendMessage() {
+async function sendMessage() {
   const text =
-    messageInput?.value
-      .trim() || "";
+    messageInput?.value.trim() || "";
 
-  if (
-    !text &&
-    !pendingAttachments.length
-  ) {
+  if (!text && !pendingAttachments.length) {
     return;
   }
 
@@ -511,30 +507,61 @@ function sendMessage() {
   );
 
   messageInput.value = "";
-
   pendingAttachments = [];
 
   renderAttachmentPreview();
-
   autoResize();
 
   if ($("sendBtn")) {
     $("sendBtn").disabled = true;
   }
 
-  setTimeout(() => {
-    addMessage(
-      "assistant",
-      demoReply(
-        text,
-        attachments
-      )
+  try {
+    const response = await fetch(
+      "https://apo-ai-backend-v2.dachivasadze18.workers.dev",
+      {
+        method: "POST",
+
+        headers: {
+          "Content-Type": "application/json"
+        },
+
+        body: JSON.stringify({
+          message: text,
+          mode:
+            modeSelect?.value ||
+            "medium"
+        })
+      }
     );
 
+    const data =
+      await response.json();
+
+    if (!response.ok) {
+      throw new Error(
+        data.error ||
+        "APO AI backend failed"
+      );
+    }
+
+    addMessage(
+      "assistant",
+      data.reply ||
+      "APO AI returned no response."
+    );
+  } catch (error) {
+    console.error(error);
+
+    addMessage(
+      "assistant",
+      "APO AI couldn't connect to the backend. Please try again."
+    );
+  } finally {
     if ($("sendBtn")) {
       $("sendBtn").disabled = false;
     }
-  }, 250);
+  }
 }
 
 
